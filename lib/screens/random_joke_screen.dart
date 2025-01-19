@@ -1,36 +1,78 @@
 import 'package:flutter/material.dart';
-import '../model/joke.dart';
 import '../services/api_services.dart';
+import '../widgets/joke_card.dart';
+import 'favorite_joke_screen.dart';
 
-class RandomJokeScreen extends StatelessWidget {
+class JokesScreen extends StatefulWidget {
+  final String category;
+
+  JokesScreen({required this.category});
+
+  @override
+  _JokesScreenState createState() => _JokesScreenState();
+}
+
+class _JokesScreenState extends State<JokesScreen> {
+  List<String> jokes = [];
+  Set<String> favoriteJokes = {};
+
+  @override
+  void initState() {
+    super.initState();
+    fetchJokes();
+  }
+
+  void fetchJokes() async {
+    try {
+      final fetchedJokes = await ApiService.getJokesByType(widget.category);
+      setState(() {
+        jokes = fetchedJokes.map((j) => j.setup + " - " + j.punchline).toList();
+      });
+    } catch (e) {
+      print("Failed to fetch jokes: $e");
+    }
+  }
+
+  void toggleFavorite(String joke) {
+    setState(() {
+      if (favoriteJokes.contains(joke)) {
+        favoriteJokes.remove(joke);
+      } else {
+        favoriteJokes.add(joke);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Random Joke of the Day"),
+        title: Text("${widget.category} Jokes"),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.favorite),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => FavoriteJokesScreen(
+                    favoriteJokes: favoriteJokes.toList(),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
-      body: FutureBuilder<Joke>(
-        future: ApiService.getRandomJoke(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          } else {
-            return Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(snapshot.data!.setup,
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 10),
-                  Text(snapshot.data!.punchline,
-                      style: TextStyle(fontSize: 18, fontStyle: FontStyle.italic)),
-                ],
-              ),
-            );
-          }
+      body: ListView.builder(
+        itemCount: jokes.length,
+        itemBuilder: (context, index) {
+          final joke = jokes[index];
+          return JokeCard(
+            joke: joke,
+            isFavorite: favoriteJokes.contains(joke),
+            onFavoriteToggle: () => toggleFavorite(joke),
+          );
         },
       ),
     );
